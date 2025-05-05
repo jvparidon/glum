@@ -18,6 +18,7 @@ from glum._distribution import (
     InverseGaussianDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
+    HuberDistribution,
     PoissonDistribution,
     TweedieDistribution,
 )
@@ -264,6 +265,7 @@ def test_glm_identity_regression_categorical_data(solver, offset, convert_x_fn):
     "family",
     [
         NormalDistribution(),
+        HuberDistribution(),
         PoissonDistribution(),
         GammaDistribution(),
         InverseGaussianDistribution(),

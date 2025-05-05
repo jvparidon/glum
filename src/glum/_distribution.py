@@ -26,6 +26,10 @@ from ._functions import (
     normal_identity_eta_mu_deviance,
     normal_identity_rowwise_gradient_hessian,
     normal_log_likelihood,
+    huber_deviance,
+    huber_identity_eta_mu_deviance,
+    huber_identity_rowwise_gradient_hessian,
+    huber_log_likelihood,
     poisson_deviance,
     poisson_log_eta_mu_deviance,
     poisson_log_likelihood,
@@ -888,6 +892,125 @@ class NormalDistribution(ExponentialDispersionModel):
         )
 
 
+class HuberDistribution(ExponentialDispersionModel):
+    """Class for the normal (a.k.a. Gaussian) distribution with Huber loss.
+
+    The normal distribution models outcomes ``y`` in ``(-∞, +∞)``.
+
+    See the documentation of the superclass,
+    :class:`~glum.ExponentialDispersionModel`, for details.
+    """
+
+    lower_bound = -np.inf
+    upper_bound = np.inf
+    include_lower_bound = False
+    include_upper_bound = False
+
+    def __eq__(self, other):  # noqa D
+        return isinstance(other, self.__class__)
+
+    def __tweedie_repr__(self):  # noqa D
+        return TweedieDistribution(0)
+
+    def unit_variance(self, mu) -> np.ndarray:  # noqa D
+        return 1 if np.isscalar(mu) else np.ones_like(mu)  # type: ignore
+
+    def unit_variance_derivative(self, mu) -> np.ndarray:  # noqa D
+        return 0 if np.isscalar(mu) else np.zeros_like(mu)  # type: ignore
+
+    def deviance(self, y, mu, sample_weight=None) -> float:  # noqa D
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        # NOTE: the dispersion parameter is only necessary to convey
+        # type information on account of a bug in Cython
+
+        #return normal_deviance(y, sample_weight, mu, dispersion=1.0)
+        return huber_deviance(y, sample_weight, mu, dispersion=1.0)
+
+    def unit_deviance(self, y, mu):  # noqa D
+        #return (y - mu) ** 2
+        return ((1 + (y - mu) ** 2) ** .5) - 1
+
+    def _rowwise_gradient_hessian(
+        self, link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+    ):
+        if isinstance(link, IdentityLink):
+            #return normal_identity_rowwise_gradient_hessian(
+            return huber_identity_rowwise_gradient_hessian(
+                y, sample_weight, eta, mu, gradient_rows, hessian_rows
+            )
+
+        return super()._rowwise_gradient_hessian(
+            link, y, sample_weight, eta, mu, gradient_rows, hessian_rows
+        )
+
+    def _eta_mu_deviance(
+        self,
+        link: Link,
+        factor: float,
+        cur_eta,
+        X_dot_d,
+        y,
+        sample_weight,
+        eta_out,
+        mu_out,
+    ):
+        if isinstance(link, IdentityLink):
+            #return normal_identity_eta_mu_deviance(
+            return huber_identity_eta_mu_deviance(
+                cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out, factor
+            )
+
+        return super()._eta_mu_deviance(
+            link, factor, cur_eta, X_dot_d, y, sample_weight, eta_out, mu_out
+        )
+
+    def log_likelihood(self, y, mu, sample_weight=None, dispersion=None) -> float:
+        r"""Compute the log likelihood.
+
+        Parameters
+        ----------
+        y : array-like, shape (n_samples,)
+            Target values.
+
+        mu : array-like, shape (n_samples,)
+            Predicted mean.
+
+        sample_weight : array-like, shape (n_samples,), optional (default=1)
+            Sample weights.
+
+        dispersion : float, optional (default=None)
+            Dispersion parameter :math:`\phi`. Estimated if ``None``.
+        """
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+        sample_weight = np.ones_like(y) if sample_weight is None else sample_weight
+
+        if dispersion is None:
+            dispersion = self.dispersion(y, mu, sample_weight)
+
+        return normal_log_likelihood(y, sample_weight, mu, float(dispersion))
+        #return huber_log_likelihood(y, sample_weight, mu, float(dispersion))
+
+    def dispersion(  # noqa D
+        self, y, mu, sample_weight=None, ddof=1, method="pearson"
+    ) -> float:
+        y, mu, sample_weight = _as_float_arrays(y, mu, sample_weight)
+
+        if method == "pearson":
+            #formula = "(y - mu) ** 2"
+            formula = "((1 + (y - mu) ** 2) ** .5) - 1"
+            if sample_weight is None:
+                return numexpr.evaluate(formula).sum() / (len(y) - ddof)
+            else:
+                formula = f"sample_weight * {formula}"
+                return numexpr.evaluate(formula).sum() / (sample_weight.sum() - ddof)
+
+        return super().dispersion(
+            y, mu, sample_weight=sample_weight, ddof=ddof, method=method
+        )
+
+
 class PoissonDistribution(ExponentialDispersionModel):
     """Class for the scaled Poisson distribution.
 
@@ -1579,6 +1702,10 @@ def guess_intercept(
     if isinstance(link, IdentityLink):
         # This is only correct for the normal. For other distributions, the
         # answer is unknown, but we assume that we want `sum(y) = sum(mu)`
+        
+        if isinstance(distribution, HuberDistribution):
+            # TODO: add special case handling for Huber dist (pseudo huber mean)
+            pass
 
         if eta is None:
             return avg_y

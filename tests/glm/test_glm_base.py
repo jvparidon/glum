@@ -14,6 +14,7 @@ from glum._distribution import (
     InverseGaussianDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
+    HuberDistribution,
     PoissonDistribution,
 )
 from glum._glm import GeneralizedLinearRegressor
@@ -171,6 +172,7 @@ def test_gradient_tol_setting(estimator, kwargs, solver, gradient_tol):
     [
         ("gaussian", NormalDistribution()),
         ("normal", NormalDistribution()),
+        ("huber", HuberDistribution()),
         ("poisson", PoissonDistribution()),
         ("gamma", GammaDistribution()),
         ("inverse.gaussian", InverseGaussianDistribution()),

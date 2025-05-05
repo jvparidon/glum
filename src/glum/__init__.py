@@ -8,6 +8,7 @@ from ._distribution import (
     InverseGaussianDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
+    HuberDistribution,
     PoissonDistribution,
     TweedieDistribution,
 )
@@ -27,6 +28,7 @@ __all__ = [
     "GeneralizedHyperbolicSecant",
     "InverseGaussianDistribution",
     "NormalDistribution",
+    "HuberDistribution",
     "PoissonDistribution",
     "TweedieDistribution",
     "NegativeBinomialDistribution",

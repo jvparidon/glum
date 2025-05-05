@@ -33,6 +33,7 @@ def _get_family_rv(family, rand: np.random._generator.Generator):
         "poisson": rand.poisson,
         "gamma": rand.gamma,
         "normal": rand.normal,
+        "huber": lambda x: np.hypot(rand.normal(x), 1) - 1,
         "binomial": partial(rand.binomial, 1),
     }
 
@@ -43,7 +44,7 @@ def _get_family_rv(family, rand: np.random._generator.Generator):
         return partial(tweedie_rv, p=p)
     else:
         raise ValueError(
-            'family must take the value "poisson", "gamma", "normal", "binomial", or '
+            'family must take the value "poisson", "gamma", "normal", "huber", "binomial", or '
             '"tweedie_p=XX". '
             f"Currently {family}."
         )

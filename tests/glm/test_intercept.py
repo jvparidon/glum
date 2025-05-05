@@ -9,6 +9,7 @@ from glum._distribution import (
     InverseGaussianDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
+    HuberDistribution,
     PoissonDistribution,
     TweedieDistribution,
     guess_intercept,
@@ -29,6 +30,7 @@ from glum._link import IdentityLink, Link, LogitLink, LogLink
         (LogLink(), NegativeBinomialDistribution(), 1e-2),
         (LogitLink(), BinomialDistribution(), 1e-2),
         (IdentityLink(), GeneralizedHyperbolicSecant(), 1e-1),
+        (IdentityLink(), HuberDistribution(), 1e-4),
     ],
 )
 @pytest.mark.parametrize("offset", [None, np.array([0.3, -0.1, 0, 0.1]), 0.1])

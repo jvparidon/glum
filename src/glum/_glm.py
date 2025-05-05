@@ -23,6 +23,7 @@ from ._distribution import (
     InverseGaussianDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
+    HuberDistribution,
     PoissonDistribution,
     TweedieDistribution,
     guess_intercept,
@@ -446,6 +447,7 @@ class GeneralizedLinearRegressorBase(skl.base.RegressorMixin, skl.base.BaseEstim
         ):
             # IRLS-CD and IRLS-LS should converge in one iteration for any
             # normal distribution problem with identity link.
+            # TODO: figure out if this applies to HuberDistribution as well
             fixed_inner_tol = (self._gradient_tol, self.step_size_tol)
             max_iter = 1
         else:
@@ -2886,6 +2888,7 @@ def get_family(
         "binomial": BinomialDistribution(),
         "gamma": GammaDistribution(),
         "gaussian": NormalDistribution(),
+        "huber": HuberDistribution(),
         "inverse.gaussian": InverseGaussianDistribution(),
         "normal": NormalDistribution(),
         "poisson": PoissonDistribution(),

@@ -1,7 +1,7 @@
 from cython cimport floating
 from cython.parallel import prange
 
-from libc.math cimport M_PI, ceil, exp, floor, lgamma, log
+from libc.math cimport M_PI, ceil, exp, floor, lgamma, log, log1p, hypot, abs
 
 ctypedef fused numeric:
     short
@@ -594,3 +594,127 @@ def negative_binomial_deviance(
             D += weights[i] * y[i] * log(y[i] / mu[i])
 
     return 2 * D
+
+
+def huber_identity_eta_mu_deviance(
+    const_floating1d cur_eta,
+    const_floating1d X_dot_d,
+    const_floating1d y,
+    const_floating1d weights,
+    floating[:] eta_out,
+    floating[:] mu_out,
+    floating factor
+):
+    cdef int n = cur_eta.shape[0]
+    cdef int i
+    cdef floating deviance = 0.0
+    for i in prange(n, nogil=True):
+        eta_out[i] = cur_eta[i] + factor * X_dot_d[i]
+        mu_out[i] = eta_out[i]
+
+        # normal
+        #deviance += weights[i] * (y[i] - mu_out[i]) ** 2
+
+        # pseudo huber
+        #deviance += weights[i] * ((y[i] - mu_out[i]) ** 2 + 1) ** .5 - 1
+
+        # numerically stable version of pseudo huber
+        deviance += weights[i] * (hypot(y[i] - mu_out[i], 1) - 1)
+    return 2 * deviance
+
+
+def huber_identity_rowwise_gradient_hessian(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d eta,
+    const_floating1d mu,
+    floating[:] gradient_rows_out,
+    floating[:] hessian_rows_out
+):
+    cdef int n = eta.shape[0]
+    cdef int i
+    cdef floating e
+    for i in prange(n, nogil=True):
+        
+        # error
+        e = y[i] - mu[i]
+
+        # normal
+        #gradient_rows_out[i] = weights[i] * e
+
+        # derivative of pseudo huber
+        #gradient_rows_out[i] = weights[i] * (e / (e ** 2 + 1) ** .5)
+        
+        # numerically stable version of derivative of pseudo huber
+        gradient_rows_out[i] = weights[i] * (e / hypot(e, 1))
+        #gradient_rows_out[i] = weights[i] * (e / hypot(e, 1)) / 2
+
+        # Note: hessian_rows_out yields -1 times the true hessian to match
+        # the default calculation in _distribution.py
+        # normal
+        #hessian_rows_out[i] = weights[i]
+        
+        # hessian of pseudo huber
+        #hessian_rows_out[i] = weights[i] / (1 + e ** 2) ** 1.5
+
+        # numerically stable version of hessian of pseudo huber
+        #hessian_rows_out[i] = weights[i] * exp(-1.5 * log1p(e ** 2))
+        #hessian_rows_out[i] = weights[i] / (2 * hypot(e, 1))
+        hessian_rows_out[i] = weights[i]
+
+
+def huber_log_likelihood(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int i  # loop counter
+    cdef floating sum_weights  # helper
+
+    cdef int n = y.shape[0]  # loop length
+    cdef floating ll = 0.0  # output
+
+    for i in prange(n, nogil=True):
+        # normal
+        #ll -= weights[i] * (y[i] - mu[i]) ** 2
+
+        # pseudo huber
+        #ll -= weights[i] * ((y[i] - mu[i]) ** 2 + 1) ** .5 - 1
+
+        # numerically stable pseudo huber
+        ll -= weights[i] * (hypot(y[i] - mu[i], 1) - 1)
+
+        sum_weights -= weights[i]
+
+    return ll / (2 * dispersion) + sum_weights * log(2 * M_PI * dispersion) / 2
+
+def huber_deviance(
+    const_floating1d y,
+    const_floating1d weights,
+    const_floating1d mu,
+    floating dispersion,
+):
+    cdef int i  # loop counter
+
+    cdef int n = y.shape[0]  # loop length
+    cdef floating D = 0.0  # output
+    cdef floating e
+
+    for i in prange(n, nogil=True):
+        
+        # error
+        e = y[i] - mu[i]
+
+        # normal
+        #D += weights[i] * e ** 2
+
+        # pseudo huber
+        #D += weights[i] * (e ** 2 + 1) ** .5 - 1
+        
+        # numerically stable version of pseudo huber
+        D += weights[i] * (hypot(e, 1) - 1)
+        #D += weights[i] * (e ** 2 / (hypot(e, 1) + 1))
+        #D += weights[i] * (e ** 2 / ((e ** 2 + 1) ** .5 + 1))
+
+    return D

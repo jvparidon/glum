@@ -14,12 +14,13 @@ from glum._glm import GeneralizedLinearRegressor
 from glum._glm_cv import GeneralizedLinearRegressorCV
 from glum_benchmarks.data import simulate_glm_data
 
-distributions_to_test = ["normal", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
+distributions_to_test = ["normal", "huber", "poisson", "gamma", "tweedie_p=1.5", "binomial"]
 custom_family_link = [("normal", "log")]
 
 # Not the canonical link for tweedie and gamma, but what the actuaries use.
 link_map = {
     "normal": "identity",
+    "huber": "identity",
     "poisson": "log",
     "gamma": "log",
     "tweedie_p=1.5": "log",
